@@ -34,7 +34,11 @@ func (w FetchResult) StatusString() string {
 	if w.Status() == true {
 		return "\x1b[1;32mPASS\x1b[0m"
 	} else {
-		return "\x1b[1;31mFAIL\x1b[0m"
+		if (w.code == -1) {
+			return "\x1b[1;31mFAIL\x1b[0m"
+		} else {
+			return "\x1b[0;33mWARN\x1b[0m"
+		}
 	}
 }
 
@@ -42,11 +46,12 @@ func PingService(buddy string, url string, report chan FetchResult) {
 	start := time.Now()
 	res, err := http.Get(url)
 
+	requestTime := time.Since(start)
+
 	if (err != nil) {
+		report <- FetchResult{buddy, url, -1, requestTime}
 		return
 	}
-
-	requestTime := time.Since(start)
 
 	report <- FetchResult{buddy, url, res.StatusCode, requestTime}
 }
