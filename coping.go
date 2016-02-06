@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"strings"
+	"strconv"
 )
 
 // Stores the result of a "ping"
@@ -46,6 +47,10 @@ func (w FetchResult) StatusString() string {
 	}
 }
 
+func (s Settings) GetCallback() string {
+	return "http://127.0.0.1:" + strconv.Itoa(s.Port)
+}
+
 // Ping a service
 func PingService(url string, report chan FetchResult) {
 	start := time.Now()
@@ -69,10 +74,10 @@ type ServicesResult struct {
 
 // Fetch services
 func FetchServices(buddy string, report chan ServicesResult) {
-	res, err := http.Get(buddy + "/services")
+	res, err := http.Get(buddy + "/services?callback=" + settings.GetCallback())
 
 	if err != nil {
-		log.Printf("\x1b[1;31m Buddy stopped responding ... %s\x1b[0m\n", buddy)
+		log.Printf("\x1b[1;31m Buddy not responding ... %s\x1b[0m\n", buddy)
 		return
 	}
 
@@ -88,6 +93,25 @@ func FetchServices(buddy string, report chan ServicesResult) {
 
 // GET /services
 func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
+	buddy := r.FormValue("callback")
+
+	// If there is a callback, add it to the buddy list
+	if buddy != "" {
+		found := false
+
+		for _, s := range settings.Buddies {
+			if s == buddy {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			settings.Buddies = append(settings.Buddies, buddy)
+			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
+		}
+	}
+
 	b, _ := json.Marshal(settings.Services)
 	io.WriteString(w, string(b))
 }
@@ -100,7 +124,7 @@ type BuddiesResult struct {
 
 // Fetch buddies
 func FetchBuddies(buddy string, report chan BuddiesResult) {
-	res, err := http.Get(buddy + "/buddies?callback=http://127.0.0.1:" + settings.Port)
+	res, err := http.Get(buddy + "/buddies?callback=" + settings.GetCallback())
 
 	if err != nil {
 		return
@@ -133,7 +157,7 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 
 		if !found {
 			settings.Buddies = append(settings.Buddies, buddy)
-			log.Printf("\x1b[1;32m Got new buddy from request ... %s\x1b[0m\n", buddy)
+			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
 		}
 	}
 
@@ -146,37 +170,25 @@ func WebReportHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type Settings struct {
-	Port string
+	Port int
 	Buddies []string
 	Services []string
 }
 
 var settings = Settings{}
 
-func LoadSettings(file string) {
-	body, err := ioutil.ReadFile(file)
-
-	if err != nil {
-		log.Fatalf("Couldn't read %s!\n", file)
-	}
-
-	err = json.Unmarshal(body, &settings);
-
-	if err != nil {
-		log.Fatalf("Couldn't parse %s: %s\n", file, err.Error())
-	}
-}
-
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 }
 
 func main() {
-	LoadSettings("config.json")
-
-	port := flag.String("port", "9999", "Port to listen on")
+	port := flag.Int("port", 9999, "Port to listen on")
 	buddies := flag.String("buddies", "", "Comma-separated list of buddies to use for bootstrapping")
 	services := flag.String("services", "", "Comma-separated list of services to check")
+
+	checkInterval := flag.Int("checkInterval", 60, "How often to check services (in seconds)")
+	servicesInterval := flag.Int("servicesInterval", 60, "How often to update services list (in seconds)")
+	buddiesInterval := flag.Int("buddiesInterval", 120, "How often to update buddies list (in seconds)")
 
 	flag.Parse()
 
@@ -188,20 +200,20 @@ func main() {
 		settings.Services = strings.Split(*services, ",")
 	}
 
-	settings.Port = *port
+	settings.Port = int(*port)
 
 	// Start webserver
 	http.HandleFunc("/services", WebServicesHandler) // Return a list of services for sharing with other instances of coping
 	http.HandleFunc("/buddies", WebBuddiesHandler) // Return a list of buddies for sharing with other instances of coping
 	http.HandleFunc("/report", WebReportHandler) // ????
-	go http.ListenAndServe(":" + *port, nil)
+	go http.ListenAndServe(":" + strconv.Itoa(settings.Port), nil)
 
-	log.Printf("\x1b[1;33mCoping is listening on http://127.0.0.1:" + *port + "\x1b[0m\n")
+	log.Printf("\x1b[1;33mCoping is listening on " + settings.GetCallback() + "\x1b[0m\n")
 
 	// Set up fetch tick
-	checkTicker := time.Tick(10 * time.Second)
-	serviceListTicker := time.Tick(15 * time.Second)
-	buddyListTicker := time.Tick(30 * time.Second)
+	checkTicker := time.Tick(time.Duration(*checkInterval) * time.Second)
+	serviceListTicker := time.Tick(time.Duration(*servicesInterval) * time.Second)
+	buddyListTicker := time.Tick(time.Duration(*buddiesInterval) * time.Second)
 
 	fetchResultChan := make(chan FetchResult)
 	servicesResultChan := make(chan ServicesResult)
