@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"encoding/json"
+	"strings"
 )
 
 // Stores the result of a "ping"
@@ -71,6 +72,7 @@ func FetchServices(buddy string, report chan ServicesResult) {
 	res, err := http.Get(buddy + "/services")
 
 	if err != nil {
+		log.Printf("\x1b[1;31m Buddy stopped responding ... %s\x1b[0m\n", buddy)
 		return
 	}
 
@@ -131,6 +133,7 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 
 		if !found {
 			settings.Buddies = append(settings.Buddies, buddy)
+			log.Printf("\x1b[1;32m Got new buddy from request ... %s\x1b[0m\n", buddy)
 		}
 	}
 
@@ -172,12 +175,17 @@ func main() {
 	LoadSettings("config.json")
 
 	port := flag.String("port", "9999", "Port to listen on")
-	bootstrap := flag.String("bootstrap", "", "Server to use for bootstrapping buddy list")
+	buddies := flag.String("buddies", "", "Comma-separated list of buddies to use for bootstrapping")
+	services := flag.String("services", "", "Comma-separated list of services to check")
 
 	flag.Parse()
 
-	if (*bootstrap != "") {
-		settings.Buddies = append(settings.Buddies, *bootstrap)
+	if (*buddies != "") {
+		settings.Buddies = strings.Split(*buddies, ",")
+	}
+
+	if (*services != "") {
+		settings.Services = strings.Split(*services, ",")
 	}
 
 	settings.Port = *port
@@ -188,7 +196,7 @@ func main() {
 	http.HandleFunc("/report", WebReportHandler) // ????
 	go http.ListenAndServe(":" + *port, nil)
 
-	log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Coping is listening on http://127.0.0.1:" + *port + "\n")
+	log.Printf("\x1b[1;33mCoping is listening on http://127.0.0.1:" + *port + "\x1b[0m\n")
 
 	// Set up fetch tick
 	checkTicker := time.Tick(10 * time.Second)
@@ -213,13 +221,11 @@ func main() {
 			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
 
 		case <- serviceListTicker:
-			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Updating list of services from buddies...\n")
 			for _, buddy := range settings.Buddies {
 				go FetchServices(buddy, servicesResultChan)
 			}
 
 		case <- buddyListTicker:
-			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Updating list of buddies...\n")
 			for _, buddy := range settings.Buddies {
 				go FetchBuddies(buddy, buddiesResultChan)
 			}
@@ -237,7 +243,7 @@ func main() {
 
 				if !found {
 					settings.Services = append(settings.Services, service)
-					log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got new service from %s ... %s\n", result.buddy, service)
+					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.buddy, service)
 				}
 			}
 			buddyServices[result.buddy] = result.services
@@ -255,7 +261,7 @@ func main() {
 
 				if !found {
 					settings.Buddies = append(settings.Buddies, buddy)
-					log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got new buddy from %s ... %s\n", result.buddy, buddy)
+					log.Printf("\x1b[1;32mGot new buddy from %s ... %s\x1b[0m\n", result.buddy, buddy)
 				}
 			}
 		}
