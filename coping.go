@@ -22,11 +22,11 @@ func (w FetchResult) Status() bool {
 	if w.requestTime > (1 * time.Second) {
 		return false
 	}
-	
+
 	if w.code != 200 {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -40,9 +40,14 @@ func (w FetchResult) StatusString() string {
 
 func PingService(buddy string, url string, report chan FetchResult) {
 	start := time.Now()
-	res, _ := http.Get(url)
+	res, err := http.Get(url)
+
+	if (err != nil) {
+		return
+	}
+
 	requestTime := time.Since(start)
-	
+
 	report <- FetchResult{buddy, url, res.StatusCode, requestTime}
 }
 
@@ -79,13 +84,13 @@ var settings = Settings{}
 
 func LoadSettings(file string) {
 	body, err := ioutil.ReadFile(file)
-	
+
 	if err != nil {
 		log.Fatalf("Couldn't read %s!\n", file)
 	}
 
 	err = json.Unmarshal(body, &settings);
-	
+
 	if err != nil {
 		log.Fatalf("Couldn't parse %s: %s\n", file, err.Error())
 	}
@@ -102,16 +107,16 @@ func main() {
 	http.HandleFunc("/services", WebServicesHandler)
 	http.HandleFunc("/report", WebReportHandler)
 	go http.ListenAndServe(":9999", nil)
-	
+
 	log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Coping is listening on http://127.0.0.1:9999\n")
 
 	// Set up fetch tick
 	checkTicker := time.Tick(10 * time.Second)
 	serviceListTicker := time.Tick(15 * time.Second)
-	
+
 	fetchResultChan := make(chan FetchResult)
 	servicesResultChan := make(chan ServicesResult)
-	
+
 	buddyServices := map[string][]string{}
 
 	// Loop
@@ -123,16 +128,16 @@ func main() {
 					go PingService(b, v, fetchResultChan)
 				}
 			}
-			
+
 		case result := <- fetchResultChan:
 			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
-		
+
 		case <- serviceListTicker:
 			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Updating list of services from buddies...\n")
 			for _, buddy := range settings.Buddies {
 				go FetchServices(buddy, servicesResultChan)
 			}
-			
+
 		case result := <- servicesResultChan:
 			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got services from %s:\n", result.buddy)
 			for _, service := range result.services {
