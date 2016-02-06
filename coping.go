@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"time"
 	"net/http"
@@ -11,13 +12,14 @@ import (
 	"encoding/json"
 )
 
+// Stores the result of a "ping"
 type FetchResult struct {
-	buddy string
 	url string
 	code int
 	requestTime time.Duration
 }
 
+// Return whether the status is a pass or fail
 func (w FetchResult) Status() bool {
 	if w.requestTime > (1 * time.Second) {
 		return false
@@ -30,6 +32,7 @@ func (w FetchResult) Status() bool {
 	return true
 }
 
+// Convert a status into a PASS/WARN/FAIL string
 func (w FetchResult) StatusString() string {
 	if w.Status() == true {
 		return "\x1b[1;32mPASS\x1b[0m"
@@ -42,31 +45,42 @@ func (w FetchResult) StatusString() string {
 	}
 }
 
-func PingService(buddy string, url string, report chan FetchResult) {
+// Ping a service
+func PingService(url string, report chan FetchResult) {
 	start := time.Now()
 	res, err := http.Get(url)
 
 	requestTime := time.Since(start)
 
 	if (err != nil) {
-		report <- FetchResult{buddy, url, -1, requestTime}
+		report <- FetchResult{url, -1, requestTime}
 		return
 	}
 
-	report <- FetchResult{buddy, url, res.StatusCode, requestTime}
+	report <- FetchResult{url, res.StatusCode, requestTime}
 }
 
+// Hold services
 type ServicesResult struct {
 	buddy string
 	services []string
 }
 
+// Fetch services
 func FetchServices(buddy string, report chan ServicesResult) {
-	res, _ := http.Get(buddy + "/services")
-	result := ServicesResult{buddy,nil}
+	res, err := http.Get(buddy + "/services")
+
+	if err != nil {
+		return
+	}
+
 	defer res.Body.Close()
+
+	result := ServicesResult{buddy,nil}
+
 	body, _ := ioutil.ReadAll(res.Body)
 	json.Unmarshal(body, &result.services)
+
 	report <- result
 }
 
@@ -76,11 +90,60 @@ func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, string(b))
 }
 
+// Hold buddies
+type BuddiesResult struct {
+	buddy string
+	buddies []string
+}
+
+// Fetch buddies
+func FetchBuddies(buddy string, report chan BuddiesResult) {
+	res, err := http.Get(buddy + "/buddies?callback=http://127.0.0.1:" + settings.Port)
+
+	if err != nil {
+		return
+	}
+
+	defer res.Body.Close()
+
+	result := BuddiesResult{buddy,nil}
+
+	body, _ := ioutil.ReadAll(res.Body)
+	json.Unmarshal(body, &result.buddies)
+
+	report <- result
+}
+
+// GET /buddies
+func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
+	buddy := r.FormValue("callback")
+
+	// If there is a callback, add it to the buddy list
+	if buddy != "" {
+		found := false
+
+		for _, s := range settings.Buddies {
+			if s == buddy {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			settings.Buddies = append(settings.Buddies, buddy)
+		}
+	}
+
+	b, _ := json.Marshal(settings.Buddies)
+	io.WriteString(w, string(b))
+}
+
 // POST /report
 func WebReportHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type Settings struct {
+	Port string
 	Buddies []string
 	Services []string
 }
@@ -108,19 +171,33 @@ func init() {
 func main() {
 	LoadSettings("config.json")
 
-	// Start webserver
-	http.HandleFunc("/services", WebServicesHandler)
-	http.HandleFunc("/report", WebReportHandler)
-	go http.ListenAndServe(":9999", nil)
+	port := flag.String("port", "9999", "Port to listen on")
+	bootstrap := flag.String("bootstrap", "", "Server to use for bootstrapping buddy list")
 
-	log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Coping is listening on http://127.0.0.1:9999\n")
+	flag.Parse()
+
+	if (*bootstrap != "") {
+		settings.Buddies = append(settings.Buddies, *bootstrap)
+	}
+
+	settings.Port = *port
+
+	// Start webserver
+	http.HandleFunc("/services", WebServicesHandler) // Return a list of services for sharing with other instances of coping
+	http.HandleFunc("/buddies", WebBuddiesHandler) // Return a list of buddies for sharing with other instances of coping
+	http.HandleFunc("/report", WebReportHandler) // ????
+	go http.ListenAndServe(":" + *port, nil)
+
+	log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Coping is listening on http://127.0.0.1:" + *port + "\n")
 
 	// Set up fetch tick
 	checkTicker := time.Tick(10 * time.Second)
 	serviceListTicker := time.Tick(15 * time.Second)
+	buddyListTicker := time.Tick(30 * time.Second)
 
 	fetchResultChan := make(chan FetchResult)
 	servicesResultChan := make(chan ServicesResult)
+	buddiesResultChan := make(chan BuddiesResult)
 
 	buddyServices := map[string][]string{}
 
@@ -128,10 +205,8 @@ func main() {
 	for {
 		select {
 		case <- checkTicker:
-			for b, s := range buddyServices {
-				for _, v := range s {
-					go PingService(b, v, fetchResultChan)
-				}
+			for _, s := range settings.Services {
+				go PingService(s, fetchResultChan)
 			}
 
 		case result := <- fetchResultChan:
@@ -143,12 +218,46 @@ func main() {
 				go FetchServices(buddy, servicesResultChan)
 			}
 
+		case <- buddyListTicker:
+			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Updating list of buddies...\n")
+			for _, buddy := range settings.Buddies {
+				go FetchBuddies(buddy, buddiesResultChan)
+			}
+
 		case result := <- servicesResultChan:
-			log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got services from %s:\n", result.buddy)
 			for _, service := range result.services {
-				log.Printf("[\x1b[1;33mSTATUS\x1b[0m] ... %s\n", service)
+				found := false
+
+				for _, s := range settings.Services {
+					if s == service {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					settings.Services = append(settings.Services, service)
+					log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got new service from %s ... %s\n", result.buddy, service)
+				}
 			}
 			buddyServices[result.buddy] = result.services
+
+		case result := <- buddiesResultChan:
+			for _, buddy := range result.buddies {
+				found := false
+
+				for _, s := range settings.Buddies {
+					if s == buddy {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					settings.Buddies = append(settings.Buddies, buddy)
+					log.Printf("[\x1b[1;33mSTATUS\x1b[0m] Got new buddy from %s ... %s\n", result.buddy, buddy)
+				}
+			}
 		}
 	}
 }
