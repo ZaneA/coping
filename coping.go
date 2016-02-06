@@ -22,12 +22,12 @@ type FetchResult struct {
 }
 
 // Return whether the status is a pass or fail
-func (w FetchResult) Status() bool {
-	if w.requestTime > (1 * time.Second) {
+func (result FetchResult) Passed() bool {
+	if result.requestTime > (1 * time.Second) {
 		return false
 	}
 
-	if w.code != 200 {
+	if result.code != 200 {
 		return false
 	}
 
@@ -35,11 +35,11 @@ func (w FetchResult) Status() bool {
 }
 
 // Convert a status into a PASS/WARN/FAIL string
-func (w FetchResult) StatusString() string {
-	if w.Status() == true {
+func (result FetchResult) StatusString() string {
+	if result.Passed() == true {
 		return "\x1b[1;32mPASS\x1b[0m"
 	} else {
-		if (w.code == -1) {
+		if (result.code == -1) {
 			return "\x1b[1;31mFAIL\x1b[0m"
 		} else {
 			return "\x1b[0;33mWARN\x1b[0m"
@@ -47,12 +47,18 @@ func (w FetchResult) StatusString() string {
 	}
 }
 
-func (s Settings) GetCallback() string {
-	return "http://127.0.0.1:" + strconv.Itoa(s.Port)
+type Settings struct {
+	Port int
+	Buddies []string
+	Services []string
 }
 
-// Ping a service
-func PingService(url string, report chan FetchResult) {
+func (settings Settings) GetCallback() string {
+	return "http://127.0.0.1:" + strconv.Itoa(settings.Port)
+}
+
+// Check a service
+func CheckService(url string, report chan FetchResult) {
 	start := time.Now()
 	res, err := http.Get(url)
 
@@ -169,12 +175,7 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 func WebReportHandler(w http.ResponseWriter, r *http.Request) {
 }
 
-type Settings struct {
-	Port int
-	Buddies []string
-	Services []string
-}
-
+// Global
 var settings = Settings{}
 
 func init() {
@@ -205,7 +206,6 @@ func main() {
 	// Start webserver
 	http.HandleFunc("/services", WebServicesHandler) // Return a list of services for sharing with other instances of coping
 	http.HandleFunc("/buddies", WebBuddiesHandler) // Return a list of buddies for sharing with other instances of coping
-	http.HandleFunc("/report", WebReportHandler) // ????
 	go http.ListenAndServe(":" + strconv.Itoa(settings.Port), nil)
 
 	log.Printf("\x1b[1;33mCoping is listening on " + settings.GetCallback() + "\x1b[0m\n")
@@ -226,7 +226,7 @@ func main() {
 		select {
 		case <- checkTicker:
 			for _, s := range settings.Services {
-				go PingService(s, fetchResultChan)
+				go CheckService(s, fetchResultChan)
 			}
 
 		case result := <- fetchResultChan:
