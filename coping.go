@@ -3,21 +3,21 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"log"
-	"time"
-	"net/http"
 	"io"
 	"io/ioutil"
-	"encoding/json"
-	"strings"
+	"log"
+	"net/http"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // Stores the result of a "ping"
 type FetchResult struct {
-	url string
-	code int
+	url         string
+	code        int
 	requestTime time.Duration
 }
 
@@ -39,7 +39,7 @@ func (result FetchResult) StatusString() string {
 	if result.Passed() == true {
 		return "\x1b[1;32mPASS\x1b[0m"
 	} else {
-		if (result.code == -1) {
+		if result.code == -1 {
 			return "\x1b[1;31mFAIL\x1b[0m"
 		} else {
 			return "\x1b[0;33mWARN\x1b[0m"
@@ -48,8 +48,8 @@ func (result FetchResult) StatusString() string {
 }
 
 type Settings struct {
-	Port int
-	Buddies []string
+	Port     int
+	Buddies  []string
 	Services []string
 }
 
@@ -64,7 +64,7 @@ func CheckService(url string, report chan FetchResult) {
 
 	requestTime := time.Since(start)
 
-	if (err != nil) {
+	if err != nil {
 		report <- FetchResult{url, -1, requestTime}
 		return
 	}
@@ -74,7 +74,7 @@ func CheckService(url string, report chan FetchResult) {
 
 // Hold services
 type ServicesResult struct {
-	buddy string
+	buddy    string
 	services []string
 }
 
@@ -89,7 +89,7 @@ func FetchServices(buddy string, report chan ServicesResult) {
 
 	defer res.Body.Close()
 
-	result := ServicesResult{buddy,nil}
+	result := ServicesResult{buddy, nil}
 
 	body, _ := ioutil.ReadAll(res.Body)
 	json.Unmarshal(body, &result.services)
@@ -124,7 +124,7 @@ func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
 
 // Hold buddies
 type BuddiesResult struct {
-	buddy string
+	buddy   string
 	buddies []string
 }
 
@@ -138,7 +138,7 @@ func FetchBuddies(buddy string, report chan BuddiesResult) {
 
 	defer res.Body.Close()
 
-	result := BuddiesResult{buddy,nil}
+	result := BuddiesResult{buddy, nil}
 
 	body, _ := ioutil.ReadAll(res.Body)
 	json.Unmarshal(body, &result.buddies)
@@ -193,11 +193,11 @@ func main() {
 
 	flag.Parse()
 
-	if (*buddies != "") {
+	if *buddies != "" {
 		settings.Buddies = strings.Split(*buddies, ",")
 	}
 
-	if (*services != "") {
+	if *services != "" {
 		settings.Services = strings.Split(*services, ",")
 	}
 
@@ -205,8 +205,8 @@ func main() {
 
 	// Start webserver
 	http.HandleFunc("/services", WebServicesHandler) // Return a list of services for sharing with other instances of coping
-	http.HandleFunc("/buddies", WebBuddiesHandler) // Return a list of buddies for sharing with other instances of coping
-	go http.ListenAndServe(":" + strconv.Itoa(settings.Port), nil)
+	http.HandleFunc("/buddies", WebBuddiesHandler)   // Return a list of buddies for sharing with other instances of coping
+	go http.ListenAndServe(":"+strconv.Itoa(settings.Port), nil)
 
 	log.Printf("\x1b[1;33mCoping is listening on " + settings.GetCallback() + "\x1b[0m\n")
 
@@ -224,25 +224,25 @@ func main() {
 	// Loop
 	for {
 		select {
-		case <- checkTicker:
+		case <-checkTicker:
 			for _, s := range settings.Services {
 				go CheckService(s, fetchResultChan)
 			}
 
-		case result := <- fetchResultChan:
+		case result := <-fetchResultChan:
 			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
 
-		case <- serviceListTicker:
+		case <-serviceListTicker:
 			for _, buddy := range settings.Buddies {
 				go FetchServices(buddy, servicesResultChan)
 			}
 
-		case <- buddyListTicker:
+		case <-buddyListTicker:
 			for _, buddy := range settings.Buddies {
 				go FetchBuddies(buddy, buddiesResultChan)
 			}
 
-		case result := <- servicesResultChan:
+		case result := <-servicesResultChan:
 			for _, service := range result.services {
 				found := false
 
@@ -260,7 +260,7 @@ func main() {
 			}
 			buddyServices[result.buddy] = result.services
 
-		case result := <- buddiesResultChan:
+		case result := <-buddiesResultChan:
 			for _, buddy := range result.buddies {
 				found := false
 
