@@ -8,14 +8,14 @@ import (
 )
 
 // Stores the result of a "ping"
-type FetchResult struct {
+type CheckResult struct {
 	Url      string
 	Code     int
 	Duration time.Duration
 }
 
 // Return whether the status is a pass or fail
-func (result FetchResult) Passed() bool {
+func (result CheckResult) Passed() bool {
 	if result.Duration > (1 * time.Second) {
 		return false
 	}
@@ -28,7 +28,7 @@ func (result FetchResult) Passed() bool {
 }
 
 // Convert a status into a PASS/WARN/FAIL string
-func (result FetchResult) StatusString() (string, string) {
+func (result CheckResult) StatusString() (string, string) {
 	if result.Passed() == true {
 		return "PASS", "\x1b[1;32mPASS\x1b[0m"
 	} else {
@@ -41,16 +41,16 @@ func (result FetchResult) StatusString() (string, string) {
 }
 
 // Check a service
-func CheckService(url string, report chan FetchResult) {
+func CheckService(url string, report chan CheckResult) {
 	start := time.Now()
 	res, err := http.Get(url)
 
 	requestTime := time.Since(start)
 
 	if err != nil {
-		report <- FetchResult{url, -1, requestTime}
+		report <- CheckResult{url, -1, requestTime}
 		return
 	}
 
-	report <- FetchResult{url, res.StatusCode, requestTime}
+	report <- CheckResult{url, res.StatusCode, requestTime}
 }

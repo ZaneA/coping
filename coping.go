@@ -118,7 +118,7 @@ func main() {
 	checkTicker := time.Tick(time.Duration(settings.CheckInterval) * time.Second)
 	syncTicker := time.Tick(time.Duration(settings.SyncInterval) * time.Second)
 
-	fetchResultChan := make(chan FetchResult)
+	checkResultChan := make(chan CheckResult)
 	syncResultChan := make(chan SyncResult)
 
 	// Loop
@@ -126,7 +126,7 @@ func main() {
 		select {
 		case <-checkTicker:
 			for _, s := range settings.Services {
-				go CheckService(s, fetchResultChan)
+				go CheckService(s, checkResultChan)
 			}
 
 		case <-syncTicker:
@@ -134,7 +134,7 @@ func main() {
 				go Sync(buddy, syncResultChan)
 			}
 
-		case result := <-fetchResultChan:
+		case result := <-checkResultChan:
 			_, status := result.StatusString()
 			log.Printf("[%s] %s (status %d) fetched in %v\n", status, result.Url, result.Code, result.Duration)
 			go MaybeAlert(&settings, result)

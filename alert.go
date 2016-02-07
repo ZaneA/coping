@@ -21,7 +21,7 @@ func init() {
 }
 
 // Alert about a result
-func MaybeAlert(settings *Settings, result FetchResult) {
+func MaybeAlert(settings *Settings, result CheckResult) {
 	state, ok := serviceState[result.Url]
 
 	passing := result.Passed()
