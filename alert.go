@@ -8,6 +8,7 @@ import (
 )
 
 type ServiceState struct {
+	Code       int
 	Passing    bool
 	Alerted    bool
 	StateCount int
@@ -15,9 +16,9 @@ type ServiceState struct {
 
 func (s ServiceState) Status() string {
 	if s.Passing {
-		return "passing"
+		return "OK"
 	} else {
-		return "failing"
+		return "ERR"
 	}
 }
 
@@ -39,12 +40,13 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 	}
 
 	if !ok {
-		state = ServiceState{passing, false, 0}
+		state = ServiceState{result.code, passing, false, 0}
 	}
 
 	// If state has changed then reset StateCount and Alerted
-	if state.Passing != passing {
-		state.Passing = passing
+	if state.Code != result.code {
+		state.Code = result.code
+		state.Passing = result.Passed()
 		state.Alerted = false
 		state.StateCount = 0
 	}
