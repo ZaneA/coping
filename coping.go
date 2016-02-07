@@ -15,6 +15,16 @@ import (
 	"time"
 )
 
+func Contains(needle string, haystack *[]string) bool {
+	for _, v := range *haystack {
+		if v == needle {
+			return true
+		}
+	}
+
+	return false
+}
+
 type Settings struct {
 	Port       int
 	AlertCount int
@@ -57,16 +67,7 @@ func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If there is a callback, add it to the buddy list
 	if buddy != "" {
-		found := false
-
-		for _, s := range settings.Buddies {
-			if s == buddy {
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		if !Contains(buddy, &settings.Buddies) {
 			settings.Buddies = append(settings.Buddies, buddy)
 			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
 		}
@@ -106,16 +107,7 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If there is a callback, add it to the buddy list
 	if buddy != "" {
-		found := false
-
-		for _, s := range settings.Buddies {
-			if s == buddy {
-				found = true
-				break
-			}
-		}
-
-		if !found {
+		if !Contains(buddy, &settings.Buddies) {
 			settings.Buddies = append(settings.Buddies, buddy)
 			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
 		}
@@ -198,16 +190,7 @@ func main() {
 
 		case result := <-servicesResultChan:
 			for _, service := range result.services {
-				found := false
-
-				for _, s := range settings.Services {
-					if s == service {
-						found = true
-						break
-					}
-				}
-
-				if !found {
+				if !Contains(service, &settings.Services) {
 					settings.Services = append(settings.Services, service)
 					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.buddy, service)
 				}
@@ -215,16 +198,7 @@ func main() {
 
 		case result := <-buddiesResultChan:
 			for _, buddy := range result.buddies {
-				found := false
-
-				for _, s := range settings.Buddies {
-					if s == buddy {
-						found = true
-						break
-					}
-				}
-
-				if !found {
+				if !Contains(buddy, &settings.Buddies) {
 					settings.Buddies = append(settings.Buddies, buddy)
 					log.Printf("\x1b[1;32mGot new buddy from %s ... %s\x1b[0m\n", result.buddy, buddy)
 				}
