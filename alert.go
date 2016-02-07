@@ -51,7 +51,7 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 	state.StateCount++
 
 	if state.StateCount >= settings.AlertCount && !state.Alerted {
-		log.Printf("%v is now %v for %v cycles!\n", result.url, state.Status(), settings.AlertCount)
+		log.Printf("%s is now %v for %v cycles!\n", result.url, state.Status(), settings.AlertCount)
 		state.Alerted = true
 	}
 

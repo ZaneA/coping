@@ -158,7 +158,7 @@ func main() {
 	http.HandleFunc("/buddies", WebBuddiesHandler)
 	go http.ListenAndServe(":"+strconv.Itoa(settings.Port), nil)
 
-	log.Printf("\x1b[1;33mCoping is listening on " + settings.GetCallback() + "\x1b[0m\n")
+	log.Printf("\x1b[1;33mCoping is listening on %s\x1b[0m\n", settings.GetCallback())
 
 	// Set up fetch tick
 	checkTicker := time.Tick(time.Duration(*checkInterval) * time.Second)
