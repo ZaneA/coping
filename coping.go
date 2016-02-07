@@ -16,13 +16,12 @@ import (
 )
 
 type Settings struct {
-	Port             int
-	AlertCount       int
-	CheckInterval    int
-	ServicesInterval int
-	BuddiesInterval  int
-	Buddies          []string
-	Services         []string
+	Port          int
+	AlertCount    int
+	CheckInterval int
+	SyncInterval  int
+	Buddies       []string
+	Services      []string
 }
 
 func (settings Settings) GetCallback() string {
@@ -30,50 +29,31 @@ func (settings Settings) GetCallback() string {
 }
 
 // Hold services
-type ServicesResult struct {
-	Buddy    string
+type SyncJson struct {
 	Services []string
+	Buddies  []string
+}
+
+type SyncResult struct {
+	Buddy string
+	Data  SyncJson
 }
 
 // Fetch services
-func FetchServices(buddy string, report chan ServicesResult) {
-	res, err := http.Get(buddy + "/services?callback=" + settings.GetCallback())
+func Sync(buddy string, report chan SyncResult) {
+	res, err := http.Get(buddy + "/sync?callback=" + settings.GetCallback())
 
 	if err != nil {
-		log.Printf("\x1b[1;31m Buddy not responding ... %s\x1b[0m\n", buddy)
+		log.Printf("\x1b[1;31m Buddy not responding to /sync ... %s\x1b[0m\n", buddy)
 		return
 	}
 
 	defer res.Body.Close()
 
-	result := ServicesResult{buddy, nil}
+	result := SyncResult{buddy, SyncJson{nil, nil}}
 
 	body, _ := ioutil.ReadAll(res.Body)
-	json.Unmarshal(body, &result.Services)
-
-	report <- result
-}
-
-// Hold buddies
-type BuddiesResult struct {
-	Buddy   string
-	Buddies []string
-}
-
-// Fetch buddies
-func FetchBuddies(buddy string, report chan BuddiesResult) {
-	res, err := http.Get(buddy + "/buddies?callback=" + settings.GetCallback())
-
-	if err != nil {
-		return
-	}
-
-	defer res.Body.Close()
-
-	result := BuddiesResult{buddy, nil}
-
-	body, _ := ioutil.ReadAll(res.Body)
-	json.Unmarshal(body, &result.Buddies)
+	json.Unmarshal(body, &result.Data)
 
 	report <- result
 }
@@ -90,19 +70,13 @@ func CheckForCallback(r *http.Request) {
 	}
 }
 
-// GET /buddies
-func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
+// GET /sync
+func WebSyncHandler(w http.ResponseWriter, r *http.Request) {
 	CheckForCallback(r)
 
-	b, _ := json.Marshal(settings.Buddies)
-	io.WriteString(w, string(b))
-}
+	state := SyncJson{settings.Services, settings.Buddies}
 
-// GET /services
-func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
-	CheckForCallback(r)
-
-	b, _ := json.Marshal(settings.Services)
+	b, _ := json.Marshal(state)
 	io.WriteString(w, string(b))
 }
 
@@ -122,8 +96,7 @@ func main() {
 	services := flag.String("services", "", "Comma-separated list of services to check")
 
 	flag.IntVar(&settings.CheckInterval, "checkInterval", 60, "How often to check services (in seconds)")
-	flag.IntVar(&settings.ServicesInterval, "servicesInterval", 60, "How often to update services list (in seconds)")
-	flag.IntVar(&settings.BuddiesInterval, "buddiesInterval", 120, "How often to update buddies list (in seconds)")
+	flag.IntVar(&settings.SyncInterval, "syncInterval", 60, "How often to sync services/buddies state (in seconds)")
 
 	flag.Parse()
 
@@ -136,20 +109,17 @@ func main() {
 	}
 
 	// Start webserver
-	http.HandleFunc("/services", WebServicesHandler)
-	http.HandleFunc("/buddies", WebBuddiesHandler)
+	http.HandleFunc("/sync", WebSyncHandler)
 	go http.ListenAndServe(":"+strconv.Itoa(settings.Port), nil)
 
 	log.Printf("\x1b[1;33mCoping is listening on %s\x1b[0m\n", settings.GetCallback())
 
 	// Set up fetch tick
 	checkTicker := time.Tick(time.Duration(settings.CheckInterval) * time.Second)
-	serviceListTicker := time.Tick(time.Duration(settings.ServicesInterval) * time.Second)
-	buddyListTicker := time.Tick(time.Duration(settings.BuddiesInterval) * time.Second)
+	syncTicker := time.Tick(time.Duration(settings.SyncInterval) * time.Second)
 
 	fetchResultChan := make(chan FetchResult)
-	servicesResultChan := make(chan ServicesResult)
-	buddiesResultChan := make(chan BuddiesResult)
+	syncResultChan := make(chan SyncResult)
 
 	// Loop
 	for {
@@ -159,14 +129,9 @@ func main() {
 				go CheckService(s, fetchResultChan)
 			}
 
-		case <-serviceListTicker:
+		case <-syncTicker:
 			for _, buddy := range settings.Buddies {
-				go FetchServices(buddy, servicesResultChan)
-			}
-
-		case <-buddyListTicker:
-			for _, buddy := range settings.Buddies {
-				go FetchBuddies(buddy, buddiesResultChan)
+				go Sync(buddy, syncResultChan)
 			}
 
 		case result := <-fetchResultChan:
@@ -174,19 +139,18 @@ func main() {
 			log.Printf("[%s] %s (status %d) fetched in %v\n", status, result.Url, result.Code, result.Duration)
 			go MaybeAlert(&settings, result)
 
-		case result := <-servicesResultChan:
-			for _, service := range result.Services {
-				if !Contains(service, &settings.Services) {
-					settings.Services = append(settings.Services, service)
-					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.Buddy, service)
-				}
-			}
-
-		case result := <-buddiesResultChan:
-			for _, buddy := range result.Buddies {
+		case result := <-syncResultChan:
+			for _, buddy := range result.Data.Buddies {
 				if !Contains(buddy, &settings.Buddies) {
 					settings.Buddies = append(settings.Buddies, buddy)
 					log.Printf("\x1b[1;32mGot new buddy from %s ... %s\x1b[0m\n", result.Buddy, buddy)
+				}
+			}
+
+			for _, service := range result.Data.Services {
+				if !Contains(service, &settings.Services) {
+					settings.Services = append(settings.Services, service)
+					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.Buddy, service)
 				}
 			}
 		}
