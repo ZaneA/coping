@@ -125,10 +125,6 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, string(b))
 }
 
-// POST /report
-func WebReportHandler(w http.ResponseWriter, r *http.Request) {
-}
-
 // Global
 var settings = Settings{}
 
