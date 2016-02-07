@@ -14,39 +14,6 @@ import (
 	"time"
 )
 
-// Stores the result of a "ping"
-type FetchResult struct {
-	url         string
-	code        int
-	requestTime time.Duration
-}
-
-// Return whether the status is a pass or fail
-func (result FetchResult) Passed() bool {
-	if result.requestTime > (1 * time.Second) {
-		return false
-	}
-
-	if result.code != 200 {
-		return false
-	}
-
-	return true
-}
-
-// Convert a status into a PASS/WARN/FAIL string
-func (result FetchResult) StatusString() string {
-	if result.Passed() == true {
-		return "\x1b[1;32mPASS\x1b[0m"
-	} else {
-		if result.code == -1 {
-			return "\x1b[1;31mFAIL\x1b[0m"
-		} else {
-			return "\x1b[0;33mWARN\x1b[0m"
-		}
-	}
-}
-
 type Settings struct {
 	Port     int
 	Buddies  []string
@@ -55,21 +22,6 @@ type Settings struct {
 
 func (settings Settings) GetCallback() string {
 	return "http://127.0.0.1:" + strconv.Itoa(settings.Port)
-}
-
-// Check a service
-func CheckService(url string, report chan FetchResult) {
-	start := time.Now()
-	res, err := http.Get(url)
-
-	requestTime := time.Since(start)
-
-	if err != nil {
-		report <- FetchResult{url, -1, requestTime}
-		return
-	}
-
-	report <- FetchResult{url, res.StatusCode, requestTime}
 }
 
 // Hold services
@@ -193,19 +145,13 @@ func main() {
 
 	flag.Parse()
 
-	if *buddies != "" {
-		settings.Buddies = strings.Split(*buddies, ",")
-	}
-
-	if *services != "" {
-		settings.Services = strings.Split(*services, ",")
-	}
-
 	settings.Port = int(*port)
+	settings.Buddies = strings.Split(*buddies, ",")
+	settings.Services = strings.Split(*services, ",")
 
 	// Start webserver
-	http.HandleFunc("/services", WebServicesHandler) // Return a list of services for sharing with other instances of coping
-	http.HandleFunc("/buddies", WebBuddiesHandler)   // Return a list of buddies for sharing with other instances of coping
+	http.HandleFunc("/services", WebServicesHandler)
+	http.HandleFunc("/buddies", WebBuddiesHandler)
 	go http.ListenAndServe(":"+strconv.Itoa(settings.Port), nil)
 
 	log.Printf("\x1b[1;33mCoping is listening on " + settings.GetCallback() + "\x1b[0m\n")
@@ -227,9 +173,6 @@ func main() {
 				go CheckService(s, fetchResultChan)
 			}
 
-		case result := <-fetchResultChan:
-			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
-
 		case <-serviceListTicker:
 			for _, buddy := range settings.Buddies {
 				go FetchServices(buddy, servicesResultChan)
@@ -238,6 +181,13 @@ func main() {
 		case <-buddyListTicker:
 			for _, buddy := range settings.Buddies {
 				go FetchBuddies(buddy, buddiesResultChan)
+			}
+
+		case result := <-fetchResultChan:
+			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
+
+			if !result.Passed() {
+				// TODO Alerts
 			}
 
 		case result := <-servicesResultChan:
