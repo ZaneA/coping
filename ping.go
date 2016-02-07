@@ -28,26 +28,14 @@ func (result FetchResult) Passed() bool {
 }
 
 // Convert a status into a PASS/WARN/FAIL string
-func (result FetchResult) StatusString(color bool) string {
+func (result FetchResult) StatusString() (string, string) {
 	if result.Passed() == true {
-		if color {
-			return "\x1b[1;32mPASS\x1b[0m"
-		} else {
-			return "PASS"
-		}
+		return "PASS", "\x1b[1;32mPASS\x1b[0m"
 	} else {
 		if result.code == -1 {
-			if color {
-				return "\x1b[1;31mFAIL\x1b[0m"
-			} else {
-				return "FAIL"
-			}
+			return "FAIL", "\x1b[1;31mFAIL\x1b[0m"
 		} else {
-			if color {
-				return "\x1b[0;33mWARN\x1b[0m"
-			} else {
-				return "WARN"
-			}
+			return "WARN", "\x1b[0;33mWARN\x1b[0m"
 		}
 	}
 }

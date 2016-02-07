@@ -47,7 +47,8 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 
 	if state.StateCount >= settings.AlertCount && !state.Alerted {
 		// Alert output to be fed into another program
-		fmt.Printf("%v;%s;%v;%v;%v;%v\n", time.Now().Unix(), result.url, result.code, result.Duration, result.StatusString(false), settings.AlertCount)
+		status, _ := result.StatusString()
+		fmt.Printf("%v;%s;%v;%v;%v;%v\n", time.Now().Unix(), result.url, result.code, result.Duration, status, settings.AlertCount)
 		state.Alerted = true
 	}
 

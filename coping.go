@@ -196,7 +196,8 @@ func main() {
 			}
 
 		case result := <-fetchResultChan:
-			log.Printf("[%s] %s (status %d) fetched in %v\n", result.StatusString(true), result.url, result.code, result.Duration)
+			_, status := result.StatusString()
+			log.Printf("[%s] %s (status %d) fetched in %v\n", status, result.url, result.code, result.Duration)
 			go MaybeAlert(&settings, result)
 
 		case result := <-servicesResultChan:
