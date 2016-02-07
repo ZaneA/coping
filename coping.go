@@ -15,9 +15,10 @@ import (
 )
 
 type Settings struct {
-	Port     int
-	Buddies  []string
-	Services []string
+	Port       int
+	AlertCount int
+	Buddies    []string
+	Services   []string
 }
 
 func (settings Settings) GetCallback() string {
@@ -143,9 +144,12 @@ func main() {
 	servicesInterval := flag.Int("servicesInterval", 60, "How often to update services list (in seconds)")
 	buddiesInterval := flag.Int("buddiesInterval", 120, "How often to update buddies list (in seconds)")
 
+	alertCount := flag.Int("alertCount", 3, "How many times a service can report failure before alerting")
+
 	flag.Parse()
 
 	settings.Port = int(*port)
+	settings.AlertCount = int(*alertCount)
 	settings.Buddies = strings.Split(*buddies, ",")
 	settings.Services = strings.Split(*services, ",")
 
@@ -185,10 +189,7 @@ func main() {
 
 		case result := <-fetchResultChan:
 			log.Printf("[%s] %s (status %d) fetched in %s\n", result.StatusString(), result.url, result.code, result.requestTime.String())
-
-			if !result.Passed() {
-				// TODO Alerts
-			}
+			go MaybeAlert(&settings, result)
 
 		case result := <-servicesResultChan:
 			for _, service := range result.services {
