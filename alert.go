@@ -22,7 +22,7 @@ func init() {
 
 // Alert about a result
 func MaybeAlert(settings *Settings, result FetchResult) {
-	state, ok := serviceState[result.url]
+	state, ok := serviceState[result.Url]
 
 	passing := result.Passed()
 
@@ -32,12 +32,12 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 	}
 
 	if !ok {
-		state = ServiceState{result.code, passing, false, 0}
+		state = ServiceState{result.Code, passing, false, 0}
 	}
 
 	// If state has changed then reset StateCount and Alerted
-	if state.Code != result.code {
-		state.Code = result.code
+	if state.Code != result.Code {
+		state.Code = result.Code
 		state.Passing = result.Passed()
 		state.Alerted = false
 		state.StateCount = 0
@@ -48,9 +48,9 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 	if state.StateCount >= settings.AlertCount && !state.Alerted {
 		// Alert output to be fed into another program
 		status, _ := result.StatusString()
-		fmt.Printf("%v;%s;%v;%v;%v;%v\n", time.Now().Unix(), result.url, result.code, result.Duration, status, settings.AlertCount)
+		fmt.Printf("%v;%s;%v;%v;%v;%v\n", time.Now().Unix(), result.Url, result.Code, result.Duration, status, settings.AlertCount)
 		state.Alerted = true
 	}
 
-	serviceState[result.url] = state
+	serviceState[result.Url] = state
 }

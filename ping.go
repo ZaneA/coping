@@ -9,8 +9,8 @@ import (
 
 // Stores the result of a "ping"
 type FetchResult struct {
-	url      string
-	code     int
+	Url      string
+	Code     int
 	Duration time.Duration
 }
 
@@ -20,7 +20,7 @@ func (result FetchResult) Passed() bool {
 		return false
 	}
 
-	if result.code != 200 {
+	if result.Code != 200 {
 		return false
 	}
 
@@ -32,7 +32,7 @@ func (result FetchResult) StatusString() (string, string) {
 	if result.Passed() == true {
 		return "PASS", "\x1b[1;32mPASS\x1b[0m"
 	} else {
-		if result.code == -1 {
+		if result.Code == -1 {
 			return "FAIL", "\x1b[1;31mFAIL\x1b[0m"
 		} else {
 			return "WARN", "\x1b[0;33mWARN\x1b[0m"

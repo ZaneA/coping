@@ -41,8 +41,8 @@ func (settings Settings) GetCallback() string {
 
 // Hold services
 type ServicesResult struct {
-	buddy    string
-	services []string
+	Buddy    string
+	Services []string
 }
 
 // Fetch services
@@ -59,15 +59,15 @@ func FetchServices(buddy string, report chan ServicesResult) {
 	result := ServicesResult{buddy, nil}
 
 	body, _ := ioutil.ReadAll(res.Body)
-	json.Unmarshal(body, &result.services)
+	json.Unmarshal(body, &result.Services)
 
 	report <- result
 }
 
 // Hold buddies
 type BuddiesResult struct {
-	buddy   string
-	buddies []string
+	Buddy   string
+	Buddies []string
 }
 
 // Fetch buddies
@@ -83,7 +83,7 @@ func FetchBuddies(buddy string, report chan BuddiesResult) {
 	result := BuddiesResult{buddy, nil}
 
 	body, _ := ioutil.ReadAll(res.Body)
-	json.Unmarshal(body, &result.buddies)
+	json.Unmarshal(body, &result.Buddies)
 
 	report <- result
 }
@@ -181,22 +181,22 @@ func main() {
 
 		case result := <-fetchResultChan:
 			_, status := result.StatusString()
-			log.Printf("[%s] %s (status %d) fetched in %v\n", status, result.url, result.code, result.Duration)
+			log.Printf("[%s] %s (status %d) fetched in %v\n", status, result.Url, result.Code, result.Duration)
 			go MaybeAlert(&settings, result)
 
 		case result := <-servicesResultChan:
-			for _, service := range result.services {
+			for _, service := range result.Services {
 				if !Contains(service, &settings.Services) {
 					settings.Services = append(settings.Services, service)
-					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.buddy, service)
+					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.Buddy, service)
 				}
 			}
 
 		case result := <-buddiesResultChan:
-			for _, buddy := range result.buddies {
+			for _, buddy := range result.Buddies {
 				if !Contains(buddy, &settings.Buddies) {
 					settings.Buddies = append(settings.Buddies, buddy)
-					log.Printf("\x1b[1;32mGot new buddy from %s ... %s\x1b[0m\n", result.buddy, buddy)
+					log.Printf("\x1b[1;32mGot new buddy from %s ... %s\x1b[0m\n", result.Buddy, buddy)
 				}
 			}
 		}
