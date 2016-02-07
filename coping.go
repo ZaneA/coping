@@ -219,8 +219,6 @@ func main() {
 	servicesResultChan := make(chan ServicesResult)
 	buddiesResultChan := make(chan BuddiesResult)
 
-	buddyServices := map[string][]string{}
-
 	// Loop
 	for {
 		select {
@@ -258,7 +256,6 @@ func main() {
 					log.Printf("\x1b[1;32mGot new service from %s ... %s\x1b[0m\n", result.buddy, service)
 				}
 			}
-			buddyServices[result.buddy] = result.services
 
 		case result := <-buddiesResultChan:
 			for _, buddy := range result.buddies {
