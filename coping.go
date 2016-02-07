@@ -26,10 +26,13 @@ func Contains(needle string, haystack *[]string) bool {
 }
 
 type Settings struct {
-	Port       int
-	AlertCount int
-	Buddies    []string
-	Services   []string
+	Port             int
+	AlertCount       int
+	CheckInterval    int
+	ServicesInterval int
+	BuddiesInterval  int
+	Buddies          []string
+	Services         []string
 }
 
 func (settings Settings) GetCallback() string {
@@ -122,20 +125,17 @@ func init() {
 }
 
 func main() {
-	port := flag.Int("port", 9999, "Port to listen on")
+	flag.IntVar(&settings.Port, "port", 9999, "Port to listen on")
+	flag.IntVar(&settings.AlertCount, "alertCount", 3, "How many times a service can report failure before alerting")
+
 	buddies := flag.String("buddies", "", "Comma-separated list of buddies to use for bootstrapping")
 	services := flag.String("services", "", "Comma-separated list of services to check")
 
-	checkInterval := flag.Int("checkInterval", 60, "How often to check services (in seconds)")
-	servicesInterval := flag.Int("servicesInterval", 60, "How often to update services list (in seconds)")
-	buddiesInterval := flag.Int("buddiesInterval", 120, "How often to update buddies list (in seconds)")
-
-	alertCount := flag.Int("alertCount", 3, "How many times a service can report failure before alerting")
+	flag.IntVar(&settings.CheckInterval, "checkInterval", 60, "How often to check services (in seconds)")
+	flag.IntVar(&settings.ServicesInterval, "servicesInterval", 60, "How often to update services list (in seconds)")
+	flag.IntVar(&settings.BuddiesInterval, "buddiesInterval", 120, "How often to update buddies list (in seconds)")
 
 	flag.Parse()
-
-	settings.Port = int(*port)
-	settings.AlertCount = int(*alertCount)
 
 	if *buddies != "" {
 		settings.Buddies = strings.Split(*buddies, ",")
@@ -153,9 +153,9 @@ func main() {
 	log.Printf("\x1b[1;33mCoping is listening on %s\x1b[0m\n", settings.GetCallback())
 
 	// Set up fetch tick
-	checkTicker := time.Tick(time.Duration(*checkInterval) * time.Second)
-	serviceListTicker := time.Tick(time.Duration(*servicesInterval) * time.Second)
-	buddyListTicker := time.Tick(time.Duration(*buddiesInterval) * time.Second)
+	checkTicker := time.Tick(time.Duration(settings.CheckInterval) * time.Second)
+	serviceListTicker := time.Tick(time.Duration(settings.ServicesInterval) * time.Second)
+	buddyListTicker := time.Tick(time.Duration(settings.BuddiesInterval) * time.Second)
 
 	fetchResultChan := make(chan FetchResult)
 	servicesResultChan := make(chan ServicesResult)
