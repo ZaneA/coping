@@ -61,22 +61,6 @@ func FetchServices(buddy string, report chan ServicesResult) {
 	report <- result
 }
 
-// GET /services
-func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
-	buddy := r.FormValue("callback")
-
-	// If there is a callback, add it to the buddy list
-	if buddy != "" {
-		if !Contains(buddy, &settings.Buddies) {
-			settings.Buddies = append(settings.Buddies, buddy)
-			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
-		}
-	}
-
-	b, _ := json.Marshal(settings.Services)
-	io.WriteString(w, string(b))
-}
-
 // Hold buddies
 type BuddiesResult struct {
 	buddy   string
@@ -101,8 +85,7 @@ func FetchBuddies(buddy string, report chan BuddiesResult) {
 	report <- result
 }
 
-// GET /buddies
-func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
+func CheckForCallback(r *http.Request) {
 	buddy := r.FormValue("callback")
 
 	// If there is a callback, add it to the buddy list
@@ -112,8 +95,21 @@ func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("\x1b[1;32mGot new buddy from request ... %s\x1b[0m\n", buddy)
 		}
 	}
+}
+
+// GET /buddies
+func WebBuddiesHandler(w http.ResponseWriter, r *http.Request) {
+	CheckForCallback(r)
 
 	b, _ := json.Marshal(settings.Buddies)
+	io.WriteString(w, string(b))
+}
+
+// GET /services
+func WebServicesHandler(w http.ResponseWriter, r *http.Request) {
+	CheckForCallback(r)
+
+	b, _ := json.Marshal(settings.Services)
 	io.WriteString(w, string(b))
 }
 
