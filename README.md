@@ -10,16 +10,14 @@ Usage of ./coping:
     	How many times a service can report failure before alerting (default 3)
   -buddies string
     	Comma-separated list of buddies to use for bootstrapping
-  -buddiesInterval int
-    	How often to update buddies list (in seconds) (default 120)
   -checkInterval int
     	How often to check services (in seconds) (default 60)
   -port int
     	Port to listen on (default 9999)
   -services string
     	Comma-separated list of services to check
-  -servicesInterval int
-    	How often to update services list (in seconds) (default 60)
+  -syncInterval int
+    	How often to sync services/buddies state (in seconds) (default 60)
 ```
 
 ## Examples
