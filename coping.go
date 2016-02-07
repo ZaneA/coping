@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -133,6 +134,7 @@ var settings = Settings{}
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
+	log.SetOutput(os.Stderr)
 }
 
 func main() {
@@ -150,8 +152,14 @@ func main() {
 
 	settings.Port = int(*port)
 	settings.AlertCount = int(*alertCount)
-	settings.Buddies = strings.Split(*buddies, ",")
-	settings.Services = strings.Split(*services, ",")
+
+	if *buddies != "" {
+		settings.Buddies = strings.Split(*buddies, ",")
+	}
+
+	if *services != "" {
+		settings.Services = strings.Split(*services, ",")
+	}
 
 	// Start webserver
 	http.HandleFunc("/services", WebServicesHandler)

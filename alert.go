@@ -3,7 +3,8 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"time"
 )
 
 type ServiceState struct {
@@ -51,7 +52,8 @@ func MaybeAlert(settings *Settings, result FetchResult) {
 	state.StateCount++
 
 	if state.StateCount >= settings.AlertCount && !state.Alerted {
-		log.Printf("%s is now %v for %v cycles!\n", result.url, state.Status(), settings.AlertCount)
+		// Alert output to be fed into another program
+		fmt.Printf("%v;%s;%v;%v;%v\n", time.Now().Unix(), result.url, result.code, state.Status(), settings.AlertCount)
 		state.Alerted = true
 	}
 
